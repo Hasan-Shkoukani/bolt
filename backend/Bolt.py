@@ -1,28 +1,20 @@
 import os
 import dotenv
+import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from transformers.pipelines import pipeline
 from google import genai
 from google.genai import types
 
+dotenv.load_dotenv()
 
 app = Flask(__name__)
-print("Flask loaded")
-
-dotenv.load_dotenv()
 CORS(app)
+
+print("Flask loaded")
 
 client = genai.Client(api_key=os.getenv("GEMINI_KEY"))
 print("Gemini loaded")
-
-model_path = "hshkoukani/bolt"
-tokenizer = AutoTokenizer.from_pretrained(model_path)
-model = AutoModelForSequenceClassification.from_pretrained(model_path)
-classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
-print("AI Model loaded")
-
 
 label_map = {
     "LABEL_0": "Course Registration",
@@ -31,6 +23,20 @@ label_map = {
     "LABEL_3": "Payment & Fees",
     "LABEL_4": "Scheduling & Attendance"
 }
+
+def classify_text(text):
+    API_URL = "https://api-inference.huggingface.co/models/hshkoukani/bolt"
+    headers = {"Authorization": f"Bearer {os.getenv('HF_TOKEN')}"}
+    payload = {"inputs": text}
+
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload)
+        response.raise_for_status()
+        result = response.json()
+        return result
+    except Exception as e:
+        print(f"Hugging Face API error: {e}")
+        raise
 
 def generate_response(subject, body, label):
     response = client.models.generate_content(
@@ -52,43 +58,37 @@ def generate_response(subject, body, label):
     )
     return response.text
 
-
-
-@app.route('/analyze-label', methods=['POST']) 
+@app.route('/analyze-label', methods=['POST'])
 def analyze_label():
-    
-
     data = request.get_json()
-    
+
     if not data or 'body' not in data:
         return jsonify({"Error": "No text provided"}), 400
-    
-    text = data.get('subject', '') + ' ' + data.get('body', '')
-    
+
+    text = f"{data.get('subject', '')} {data.get('body', '')}"
+
     try:
-        try:
-            result = classifier(text)
-        except Exception as e:
-            print(f"Error classifying text: {e}")
-            return jsonify({"Error": str(e)}), 500
-        
-        result[0]['label'] = label_map.get(result[0]['label'], result[0]['label'])
-        
-        try:
-            gemini = generate_response(data.get('subject', ''), data.get('body', ''), result[0]['label'])
-        except Exception as e:
-            print(f"Error generating response: {e}")
-            return jsonify({"Error": str(e)}), 500
+        result = classify_text(text)
+        if isinstance(result, list) and result and "label" in result[0]:
+            label = result[0]['label']
+            mapped_label = label_map.get(label, label)
         else:
-            return jsonify({
-                "result": result,
-                "output": gemini
-            })
-    
+            return jsonify({"Error": "Unexpected response from classifier"}), 500
+
+        try:
+            gemini = generate_response(data.get('subject', ''), data.get('body', ''), mapped_label)
+        except Exception as e:
+            print(f"Gemini generation error: {e}")
+            return jsonify({"Error": str(e)}), 500
+
+        return jsonify({
+            "result": [{"label": mapped_label, "score": result[0].get("score", None)}],
+            "output": gemini
+        })
+
     except Exception as e:
         return jsonify({"Error": str(e)}), 500
 
-
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
