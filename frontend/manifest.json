@@ -1,0 +1,33 @@
+{
+    "manifest_version": 3,
+    "name": "Bolt",
+    "version": "1.0.0",
+    "description": "a Simple Chrome Extension for GMAIL",
+    "content_scripts": [
+        {
+            "matches": ["https://mail.google.com/*"],
+            "js": ["content.js"]
+        }
+    ],
+    "permissions": [
+        "storage",
+        "activeTab",
+        "scripting"
+    ],
+    "host_permissions": [
+        "https://mail.google.com/*",
+        "http://localhost:5000/*",
+        "https://localhost:5000/*",
+        "http://127.0.0.1:5000/*",
+        "https://127.0.0.1:5000/*"
+    ],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self'; object-src 'self';"
+    },
+    "icons": {
+          "16": "images/bolt.png",
+          "32": "images/bolt.png",
+          "48": "images/bolt.png",
+          "128": "images/bolt.png"
+        }
+}
