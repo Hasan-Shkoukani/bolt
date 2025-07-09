@@ -3,7 +3,8 @@ import dotenv
 import traceback
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers.pipelines import pipeline
 from google import genai
 from google.genai import types
 
