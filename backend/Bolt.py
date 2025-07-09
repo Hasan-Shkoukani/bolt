@@ -1,11 +1,11 @@
 import os
 import dotenv
+import google.generativeai as genai
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from transformers.pipelines import pipeline
-from google import genai
-from google.genai import types
+
 
 
 app = Flask(__name__)
@@ -14,7 +14,7 @@ print("Flask loaded")
 dotenv.load_dotenv()
 CORS(app)
 
-client = genai.Client(api_key=os.getenv("GEMINI_KEY"))
+genai.configure(api_key=os.getenv("GEMINI_KEY"))
 print("Gemini loaded")
 
 model_path = "hshkoukani/bolt"
@@ -33,9 +33,10 @@ label_map = {
 }
 
 def generate_response(subject, body, label):
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        config=types.GenerateContentConfig(
+    model = genai.GenerativeModel('gemini-2.0-flash')
+    response = model.generate_content(
+        f"Subject: {subject}\nBody: {body}\nLabel: {label}",
+        generation_config=genai.types.GenerationConfig(
             system_instruction=(
                 "You are replying to emails that I receive.\n"
                 "You will be provided with the subject, body, and label of an incoming email.\n"
@@ -47,8 +48,7 @@ def generate_response(subject, body, label):
                 "- Strictly output only the body of the response. Do not include the subject, sender, recipient, greeting, or signature unless it's contextually appropriate within the reply body.\n"
                 "- Match your tone to the given label (e.g., Complaint, Request, etc.).\n"
             )
-        ),
-        contents=f"Subject: {subject}\nBody: {body}\nLabel: {label}"
+        )
     )
     return response.text
 
