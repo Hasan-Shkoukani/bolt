@@ -1,8 +1,8 @@
 import os
 import dotenv
-import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from huggingface_hub import InferenceClient
 from google import genai
 from google.genai import types
 
@@ -10,11 +10,15 @@ dotenv.load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
-
 print("Flask loaded")
 
 client = genai.Client(api_key=os.getenv("GEMINI_KEY"))
 print("Gemini loaded")
+
+hf_token = os.getenv("HF_TOKEN")
+hf_model = "hshkoukani/bolt"
+hf_client = InferenceClient(model=hf_model, token=hf_token)
+print("HF client loaded")
 
 label_map = {
     "LABEL_0": "Course Registration",
@@ -25,38 +29,36 @@ label_map = {
 }
 
 def classify_text(text):
-    API_URL = "https://api-inference.huggingface.co/models/hshkoukani/bolt"
-    headers = {"Authorization": f"Bearer {os.getenv('HF_TOKEN')}"}
-    payload = {"inputs": text}
-
     try:
-        response = requests.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        result = response.json()
+        result = hf_client.text_classification(text)
         return result
     except Exception as e:
-        print(f"Hugging Face API error: {e}")
+        print(f"Hugging Face classification error: {e}")
         raise
 
 def generate_response(subject, body, label):
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        config=types.GenerateContentConfig(
-            system_instruction=(
-                "You are replying to emails that I receive.\n"
-                "You will be provided with the subject, body, and label of an incoming email.\n"
-                "\n"
-                "Instructions:\n"
-                "- You are the **recipient** of the original email. Write a reply accordingly.\n"
-                "- If sender and recipient names are provided, **flip their roles** in your reply.\n"
-                "- If either name is missing, **do not invent or use a placeholder like [Sender Name]**. Just leave the greeting out unless necessary.\n"
-                "- Strictly output only the body of the response. Do not include the subject, sender, recipient, greeting, or signature unless it's contextually appropriate within the reply body.\n"
-                "- Match your tone to the given label (e.g., Complaint, Request, etc.).\n"
-            )
-        ),
-        contents=f"Subject: {subject}\nBody: {body}\nLabel: {label}"
-    )
-    return response.text
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            config=types.GenerateContentConfig(
+                system_instruction=(
+                    "You are replying to emails that I receive.\n"
+                    "You will be provided with the subject, body, and label of an incoming email.\n"
+                    "\n"
+                    "Instructions:\n"
+                    "- You are the **recipient** of the original email. Write a reply accordingly.\n"
+                    "- If sender and recipient names are provided, **flip their roles** in your reply.\n"
+                    "- If either name is missing, **do not invent or use a placeholder like [Sender Name]**. Just leave the greeting out unless necessary.\n"
+                    "- Strictly output only the body of the response. Do not include the subject, sender, recipient, greeting, or signature unless it's contextually appropriate within the reply body.\n"
+                    "- Match your tone to the given label (e.g., Complaint, Request, etc.).\n"
+                )
+            ),
+            contents=f"Subject: {subject}\nBody: {body}\nLabel: {label}"
+        )
+        return response.text
+    except Exception as e:
+        print(f"Gemini generation error: {e}")
+        raise
 
 @app.route('/analyze-label', methods=['POST'])
 def analyze_label():
@@ -75,15 +77,11 @@ def analyze_label():
         else:
             return jsonify({"Error": "Unexpected response from classifier"}), 500
 
-        try:
-            gemini = generate_response(data.get('subject', ''), data.get('body', ''), mapped_label)
-        except Exception as e:
-            print(f"Gemini generation error: {e}")
-            return jsonify({"Error": str(e)}), 500
+        gemini_response = generate_response(data.get('subject', ''), data.get('body', ''), mapped_label)
 
         return jsonify({
             "result": [{"label": mapped_label, "score": result[0].get("score", None)}],
-            "output": gemini
+            "output": gemini_response
         })
 
     except Exception as e:
