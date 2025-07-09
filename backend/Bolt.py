@@ -1,6 +1,5 @@
 import os
 import dotenv
-import traceback
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -20,7 +19,6 @@ print("Gemini loaded")
 hf_token = os.getenv("HF_TOKEN")
 hf_model = "hshkoukani/bolt"
 
-# Load model and tokenizer locally
 print("Loading local HF model...")
 tokenizer = AutoTokenizer.from_pretrained(hf_model, token=hf_token)
 model = AutoModelForSequenceClassification.from_pretrained(hf_model, token=hf_token)
@@ -41,7 +39,6 @@ def classify_text(text):
         return result
     except Exception as e:
         print("Hugging Face classification error:")
-        traceback.print_exc()
         raise
 
 def generate_response(subject, body, label):
@@ -66,7 +63,6 @@ def generate_response(subject, body, label):
         return response.text
     except Exception as e:
         print("Gemini generation error:")
-        traceback.print_exc()
         raise
 
 @app.route('/analyze-label', methods=['POST'])
@@ -96,7 +92,6 @@ def analyze_label():
         })
 
     except Exception as e:
-        traceback.print_exc()
         return jsonify({"Error": str(e) or "Unknown server error"}), 500
 
 if __name__ == '__main__':
