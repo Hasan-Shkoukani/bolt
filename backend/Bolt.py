@@ -1,8 +1,9 @@
 import os
 import dotenv
+import traceback
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from huggingface_hub import InferenceClient
+from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 from google import genai
 from google.genai import types
 
@@ -17,8 +18,13 @@ print("Gemini loaded")
 
 hf_token = os.getenv("HF_TOKEN")
 hf_model = "hshkoukani/bolt"
-hf_client = InferenceClient(model=hf_model, token=hf_token)
-print("HF client loaded")
+
+# Load model and tokenizer locally
+print("Loading local HF model...")
+tokenizer = AutoTokenizer.from_pretrained(hf_model, token=hf_token)
+model = AutoModelForSequenceClassification.from_pretrained(hf_model, token=hf_token)
+clf_pipeline = pipeline("text-classification", model=model, tokenizer=tokenizer)
+print("HF pipeline loaded")
 
 label_map = {
     "LABEL_0": "Course Registration",
@@ -30,10 +36,11 @@ label_map = {
 
 def classify_text(text):
     try:
-        result = hf_client.text_classification(text)
+        result = clf_pipeline(text)
         return result
     except Exception as e:
-        print(f"Hugging Face classification error: {e}")
+        print("Hugging Face classification error:")
+        traceback.print_exc()
         raise
 
 def generate_response(subject, body, label):
@@ -57,20 +64,23 @@ def generate_response(subject, body, label):
         )
         return response.text
     except Exception as e:
-        print(f"Gemini generation error: {e}")
+        print("Gemini generation error:")
+        traceback.print_exc()
         raise
 
 @app.route('/analyze-label', methods=['POST'])
 def analyze_label():
-    data = request.get_json()
-
-    if not data or 'body' not in data:
-        return jsonify({"Error": "No text provided"}), 400
-
-    text = f"{data.get('subject', '')} {data.get('body', '')}"
-
     try:
+        data = request.get_json()
+        print("Received data:", data)
+
+        if not data or 'body' not in data:
+            return jsonify({"Error": "No text provided"}), 400
+
+        text = f"{data.get('subject', '')} {data.get('body', '')}"
+
         result = classify_text(text)
+
         if isinstance(result, list) and result and "label" in result[0]:
             label = result[0]['label']
             mapped_label = label_map.get(label, label)
@@ -85,7 +95,8 @@ def analyze_label():
         })
 
     except Exception as e:
-        return jsonify({"Error": str(e)}), 500
+        traceback.print_exc()
+        return jsonify({"Error": str(e) or "Unknown server error"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
