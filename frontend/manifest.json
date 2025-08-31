@@ -15,11 +15,7 @@
         "scripting"
     ],
     "host_permissions": [
-        "https://mail.google.com/*",
-        "http://localhost:5000/*",
-        "https://localhost:5000/*",
-        "http://127.0.0.1:5000/*",
-        "https://127.0.0.1:5000/*"
+        "https://bolt-6usx.onrender.com/*"
     ],
     "content_security_policy": {
         "extension_pages": "script-src 'self'; object-src 'self';"

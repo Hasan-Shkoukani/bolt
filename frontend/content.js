@@ -20,7 +20,7 @@ function Loaded() {
 
 function fetchEmailContent() {
     const emailSubject = document.querySelector("h2.hP")?.innerText.trim();
-    const emailBody = document.querySelector(".a3s.aiL [dir='ltr']")?.innerText;
+    const emailBody = document.querySelector(".ii.gt")?.innerText;
     console.log("Email Subject:", emailSubject);
     console.log("Email Body:", emailBody);
     
@@ -122,7 +122,7 @@ function injectButton() {
 
         loader.style.display = "block";
 
-        fetch('http://localhost:5000/analyze-label', {
+        fetch('https://bolt-6usx.onrender.com/analyze-label', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
